@@ -1,23 +1,29 @@
-from app.chain.runnable import Runnable
 from transformers import pipeline
+from app.chain.runnable import Runnable
 from app.schemas import (
     PromptInput,
     PromptOutput,
     LLMOutput,
     ParsedAnswer,
 )
-# pipeline configer with LLm
-generator = pipeline(
-    "text-generation",
-    model="HuggingFaceTB/SmolLM2-135M-Instruct"
-)
+from typing import ClassVar
+
 # The PromptBuilder class is a specific implementation of the Runnable interface that takes a PromptInput and produces a PromptOutput. The invoke method constructs a prompt string based on the provided dataset statistics and user question, following a specific format that instructs the AI to use only the provided data to answer the question. If the answer cannot be determined from the data, it instructs the AI to respond with "Not enough information." The generated prompt is then returned as a PromptOutput object.
 class PromptBuilder(Runnable[PromptInput, PromptOutput]):
 
-
+# The invoke method constructs a prompt string using the provided dataset statistics and user question. It follows a specific format that instructs the AI to use only the provided data to answer the question, and to respond with "Not enough information." if the answer cannot be determined from the data. The generated prompt is returned as a PromptOutput object.
     def invoke(self, data: PromptInput) -> PromptOutput:
+        # The dataset statistics are formatted into a string that lists each column and its associated statistics in a readable format. This formatted string is then included in the final prompt that will be sent to the language model for generating an answer.
+        formatted_stats = ""
 
+        for column, values in data.stats.items():
 
+            formatted_stats += f"\nColumn: {column}\n"
+
+            for key, value in values.items():
+                formatted_stats += f"  {key}: {value}\n"
+
+# The prompt string is constructed using a multi-line f-string that incorporates the dataset statistics and user question from the PromptInput. The prompt instructs the AI to be a strict data analyst, to use only the provided dataset statistics, and to answer briefly and clearly. If the answer cannot be determined from the data, it explicitly tells the AI to respond with "Not enough information."
         prompt = f"""
 You are a strict data analyst AI.
 
@@ -27,37 +33,85 @@ If the answer cannot be determined from the data,
 say: "Not enough information."
 
 Dataset statistics:
-{data.stats}
+{formatted_stats}
 
 User question:
 {data.question}
 
-Answer briefly and clearly.
+Answer briefly and clearly in one or two sentences.
 """
 # The generated prompt is returned as a PromptOutput object, which can be used in subsequent steps of the processing chain, such as sending it to a language model for generating an answer.
-        return PromptOutput(prompt=prompt)
+        return PromptOutput(prompt=prompt.strip())
     
-
 # The LLMRunner class is another implementation of the Runnable interface that takes a PromptOutput and produces an LLMOutput. The invoke method uses the previously defined text generation pipeline to generate a response based on the prompt contained in the PromptOutput. The generated text is extracted from the result and returned as an LLMOutput object.
 class LLMRunner(Runnable[PromptOutput, LLMOutput]):
+    generator: ClassVar = None
+
+    def _load_generator(self):
+        """Lazy load the Hugging Face model only when needed"""
+        if LLMRunner.generator is None:
+            LLMRunner.generator = pipeline(
+                "text-generation",
+                model="HuggingFaceTB/SmolLM2-135M-Instruct"
+            )
 
     def invoke(self, data: PromptOutput) -> LLMOutput:
 
-        result = generator(
-            data.prompt,
-            max_new_tokens=250,
-            truncation=True
-        )
+        # The invoke method attempts to generate a response using the text generation pipeline. 
+        # It calls the generator with the prompt from the PromptOutput, specifying a maximum of 250 new tokens and enabling truncation. 
+        # The generated text is extracted from the result, and only the portion of the text that was generated (excluding the original prompt) is returned as an LLMOutput object. 
+        # If any exceptions occur during this process, an LLMOutput containing an error message is returned instead.
+        try:
+            self._load_generator()
 
-        text = result[0]["generated_text"]
+            result = LLMRunner.generator(
+                data.prompt,
+                max_new_tokens=250,
+                return_full_text=False, # Only return the generated text, not the original prompt.
+                truncation=True
+            )
 
-        return LLMOutput(raw_text=text)
+            generated_text = result[0]["generated_text"].strip()
+
+            return LLMOutput(raw_text=generated_text)
+        
+        except Exception as e:
+
+            return LLMOutput(
+                raw_text=f"Model error: {str(e)}"
+            )
     
-# The ResponseParser class is a simple implementation of the Runnable interface that takes an LLMOutput and produces a ParsedAnswer. The invoke method processes the raw text output from the language model, stripping any leading or trailing whitespace, and returns the cleaned answer as a ParsedAnswer object. This step is crucial for extracting a clean and structured answer from the potentially verbose output generated by the language model.
+# The ResponseParser class is a simple implementation of the Runnable interface that takes an LLMOutput and produces a ParsedAnswer. 
+# The invoke method processes the raw text output from the language model, stripping any leading or trailing whitespace, and returns the cleaned answer as a ParsedAnswer object.
+#  This step is crucial for extracting a clean and structured answer from the potentially verbose output generated by the language model.
 class ResponseParser(Runnable[LLMOutput, ParsedAnswer]):
 
     def invoke(self, data: LLMOutput) -> ParsedAnswer:
 
-        cleaned = data.raw_text.strip()
+        text = data.raw_text.strip()
 
-        return ParsedAnswer(answer=cleaned)    
+        # remove empty lines
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        # if there are no lines left, return a default answer
+        if not lines:
+            return ParsedAnswer(answer="No answer generated.")
+
+        # keep only first meaningful line
+        answer = lines[0]
+
+        # Remove common prefixes
+        prefixes = ["Answer:", "A:", "Response:", "-", "*"]
+        for prefix in prefixes:
+            if answer.lower().startswith(prefix.lower()):
+                answer = answer[len(prefix):].strip()
+
+            if answer.startswith('"') and answer.endswith('"'):
+                answer = answer[1:-1].strip()
+                answer = " ".join(answer.split())
+
+            # fallback
+            if not answer:
+                answer = "No answer generated."
+
+
+        return ParsedAnswer(answer=answer)

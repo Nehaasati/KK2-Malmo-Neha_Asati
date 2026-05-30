@@ -28,11 +28,11 @@ def __ror__(self, other: Any):
         return NotImplemented
 # Runnablelambda is simple implementation of Runnable that wraps a callable function ,The invoke methord simpaly call the wrapped function with input data
 
-class RunnableLambda(Runnable(I,O)):
-    func : Callable[[I], O]
+class RunnableLambda(Runnable[I, O]):
+    func: Callable[[I], O]
 
 ## The invoke method calls the wrapped function with the provided input data and returns the result.
-def invoke(self, data: I) -> O:
+    def invoke(self, data: I) -> O:
         return self.func(data)
 
 ## RunnableSequence is an implementation of Runnable that represents a sequence of two Runnables. The invoke method first invokes the first Runnable with the input data, then takes the output and passes it to the second Runnable, returning the final output.
