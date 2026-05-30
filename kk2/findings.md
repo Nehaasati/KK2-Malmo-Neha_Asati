@@ -9,7 +9,15 @@ uv add pydantic
 uv run fastapi dev app/main.py
 
 uv add --dev pytest uv run pytest tests/test_endpoints.py -v
-
+Question
+   ↓
+PromptBuilder
+   ↓
+SmolLM
+   ↓
+ResponseParser
+   ↓
+JSON Answer
 
 
 
