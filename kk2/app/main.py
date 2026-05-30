@@ -1,11 +1,11 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 import logging
 from app.data import load_csv, get_stats
-from app.schema import (
+from kk2.app.schemas import (
     AskRequest,
     PromptInput
 )
-from app.chain.pipline import oracle_chain
+from app.chain.pipeline import oracle_chain
 
 
 app = FastAPI()
