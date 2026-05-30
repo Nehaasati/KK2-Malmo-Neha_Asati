@@ -10,4 +10,3 @@ def test_stats_dataset():
     response = client.get("/data/stats")
     assert response.status_code == 404
 
-   
