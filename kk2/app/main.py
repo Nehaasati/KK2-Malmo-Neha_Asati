@@ -1,20 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from app.data import load_csv, get_stats
 
 app = FastAPI()
 
-@app.get("/health")
-def health():
-    return {"status": "OK"}
 
-DATASET = None
+@app.post("/data/upload")
+async def upload(file: UploadFile = File(...)):
 
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV allowed")
 
-@app.get("/data/stats")
-def stats():
-    if DATASET is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No dataset uploaded"
-        )
+    content = await file.read()
 
-    return {"stats": "placeholder"}
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+    metadata = load_csv(content)
+
+    return metadata
