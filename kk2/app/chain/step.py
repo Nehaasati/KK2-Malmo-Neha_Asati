@@ -1,6 +1,6 @@
 from transformers import pipeline
 from app.chain.runnable import Runnable
-from app.schemas import (
+from app.schema import (
     PromptInput,
     PromptOutput,
     LLMOutput,

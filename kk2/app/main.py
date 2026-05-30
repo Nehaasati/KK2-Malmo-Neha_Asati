@@ -1,60 +1,100 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
+import logging
 from app.data import load_csv, get_stats
-from app.data import load_csv, get_stats
-from app.schema import AskRequest, PromptInput
+from app.schema import (
+    AskRequest,
+    PromptInput
+)
 from app.chain.pipline import oracle_chain
-from app.config import MODEL_NAME
+
+
+app = FastAPI()
+
+# Configure logging for the application. 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-app = FastAPI()
 
+@app.get("/health")
+def health():
+    return {"status": "OK"} 
 
+# Endpoint to upload a CSV file. It accepts a file upload, CSV, it raises an HTTP 400 error.
 @app.post("/data/upload")
 async def upload(file: UploadFile = File(...)):
 
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only CSV allowed")
+    logger.info(f"Upload attempt: {file.filename}")
 
+    if not file.filename.endswith(".csv"):
+        logger.warning(f"Rejected non-CSV file: {file.filename}")
+        raise HTTPException(400, "Only CSV allowed")
+
+    # ✓ FIX: read bytes here, then pass bytes to load_csv
     content = await file.read()
 
     if not content:
-        raise HTTPException(status_code=400, detail="Empty file uploaded")
+        raise HTTPException(400, "Empty file uploaded")
 
-    metadata = load_csv(content)
+    try:
+        meta = load_csv(content)   # ← pass bytes, not file.file
+        logger.info(f"Dataset loaded successfully with {meta['rows']} rows")
+        return meta
 
-    return metadata
+    except Exception as e:
+        logger.error(f"Error occurred while loading CSV: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {str(e)}")
+
+#
+@app.get("/data/stats")
+def stats():
+
+    logger.info("Stats requested")
+    stats = get_stats()
+
+    if stats is None:
+        logger.warning("Stats requested but no dataset uploaded")
+        raise HTTPException(status_code=404, detail="No dataset uploaded")
+
+    return stats
+
 
 @app.post("/ai/ask")
 def ask_ai(body: AskRequest):
 
-    logger.info("Question: %s", body.question)
+    logger.info(f"AI question received: {body.question}")
 
-    if not body.question.strip():
-        raise HTTPException(status_code=400, detail="Question cannot be empty")
+    stats = get_stats()
 
-    result = get_stats()
+    if stats is None:
+        logger.warning("AI question asked but no dataset uploaded")
+        logger.info(f"AI question failed: {body.question}")
 
-    if result is None:
         raise HTTPException(
             status_code=400,
-            detail="Upload a dataset first via POST /data/upload",
+            detail="Dataset must be uploaded before asking questions"
         )
-
     try:
+
         chain_input = PromptInput(
             question=body.question,
-            stats=result,
+            stats=stats
         )
-        output = oracle_chain.invoke(chain_input)
-        logger.info("Answer: %s", output.answer[:60])
+
+        result = oracle_chain.invoke(chain_input)
+
+        logger.info("AI response generated successfully")
 
         return {
             "question": body.question,
-            "answer": output.answer,
-            "model": MODEL_NAME,
+            "answer": result.answer,
+            "model": "MockModel"
         }
 
     except Exception as e:
-        logger.error("Pipeline error: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"AI failed: {str(e)}")
+
+        logger.error(f"AI pipeline failed: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="AI processing failed"
+        )   
