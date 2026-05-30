@@ -1,6 +1,6 @@
 from transformers import pipeline
 from app.chain.runnable import Runnable
-from kk2.app.schemas import (
+from app.schemas import (
     PromptInput,
     PromptOutput,
     LLMOutput,
@@ -11,37 +11,33 @@ from typing import ClassVar
 # The PromptBuilder class is a specific implementation of the Runnable interface that takes a PromptInput and produces a PromptOutput. The invoke method constructs a prompt string based on the provided dataset statistics and user question, following a specific format that instructs the AI to use only the provided data to answer the question. If the answer cannot be determined from the data, it instructs the AI to respond with "Not enough information." The generated prompt is then returned as a PromptOutput object.
 class PromptBuilder(Runnable[PromptInput, PromptOutput]):
 
-# The invoke method constructs a prompt string using the provided dataset statistics and user question. It follows a specific format that instructs the AI to use only the provided data to answer the question, and to respond with "Not enough information." if the answer cannot be determined from the data. The generated prompt is returned as a PromptOutput object.
     def invoke(self, data: PromptInput) -> PromptOutput:
-        # The dataset statistics are formatted into a string that lists each column and its associated statistics in a readable format. This formatted string is then included in the final prompt that will be sent to the language model for generating an answer.
+
+        # Format stats into clean readable lines
         formatted_stats = ""
-
         for column, values in data.stats.items():
-
             formatted_stats += f"\nColumn: {column}\n"
-
             for key, value in values.items():
-                formatted_stats += f"  {key}: {value}\n"
+                if value != "":  # skip empty cells
+                    formatted_stats += f"  {key}: {value}\n"
 
-# The prompt string is constructed using a multi-line f-string that incorporates the dataset statistics and user question from the PromptInput. The prompt instructs the AI to be a strict data analyst, to use only the provided dataset statistics, and to answer briefly and clearly. If the answer cannot be determined from the data, it explicitly tells the AI to respond with "Not enough information."
-        prompt = f"""
-You are a strict data analyst AI.
-
-Use ONLY the provided dataset statistics.
-
-If the answer cannot be determined from the data,
-say: "Not enough information."
+        # Better prompt — simpler instruction, clear answer format
+        prompt = f"""You are a data analyst. Use ONLY the statistics below.
 
 Dataset statistics:
 {formatted_stats}
 
-User question:
-{data.question}
+Question: {data.question}
 
-Answer briefly and clearly in one or two sentences.
-"""
-# The generated prompt is returned as a PromptOutput object, which can be used in subsequent steps of the processing chain, such as sending it to a language model for generating an answer.
+Give a short direct answer in 1 sentence. Start with the answer immediately."""
+
         return PromptOutput(prompt=prompt.strip())
+
+# The invoke method constructs a prompt string using the provided dataset statistics and user question. It follows a specific format that instructs the AI to use only the provided data to answer the question, and to respond with "Not enough information." if the answer cannot be determined from the data. The generated prompt is returned as a PromptOutput object.
+    
+# The prompt string is constructed using a multi-line f-string that incorporates the dataset statistics and user question from the PromptInput. The prompt instructs the AI to be a strict data analyst, to use only the provided dataset statistics, and to answer briefly and clearly. If the answer cannot be determined from the data, it explicitly tells the AI to respond with "Not enough information."
+        
+# The generated prompt is returned as a PromptOutput object, which can be used in subsequent steps of the processing chain, such as sending it to a language model for generating an answer.
     
 # The LLMRunner class is another implementation of the Runnable interface that takes a PromptOutput and produces an LLMOutput. The invoke method uses the previously defined text generation pipeline to generate a response based on the prompt contained in the PromptOutput. The generated text is extracted from the result and returned as an LLMOutput object.
 class LLMRunner(Runnable[PromptOutput, LLMOutput]):
@@ -89,28 +85,30 @@ class ResponseParser(Runnable[LLMOutput, ParsedAnswer]):
 
         text = data.raw_text.strip()
 
-        # remove empty lines
+        # Remove empty lines
         lines = [line.strip() for line in text.split("\n") if line.strip()]
-        # if there are no lines left, return a default answer
+
         if not lines:
             return ParsedAnswer(answer="No answer generated.")
 
-        # keep only first meaningful line
+        # Take first meaningful line
         answer = lines[0]
 
-        # Remove common prefixes
-        prefixes = ["Answer:", "A:", "Response:", "-", "*"]
+        # ✓ FIX: break after first prefix match — don't loop all prefixes
+        prefixes = ["Answer:", "A:", "Response:", "Result:", "-", "*"]
         for prefix in prefixes:
             if answer.lower().startswith(prefix.lower()):
                 answer = answer[len(prefix):].strip()
+                break  # ← THIS WAS MISSING — caused "Dataset statistics:" bug
 
-            if answer.startswith('"') and answer.endswith('"'):
-                answer = answer[1:-1].strip()
-                answer = " ".join(answer.split())
+        # ✓ FIX: quote removal is OUTSIDE the for loop now
+        if answer.startswith('"') and answer.endswith('"'):
+            answer = answer[1:-1].strip()
 
-            # fallback
-            if not answer:
-                answer = "No answer generated."
+        # Collapse spaces
+        answer = " ".join(answer.split())
 
+        if not answer:
+            answer = "No answer generated."
 
         return ParsedAnswer(answer=answer)

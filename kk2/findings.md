@@ -25,3 +25,6 @@ JSON Answer
 
 
 uvicorn app.main:app --reload   
+
+"What is the average rating?""question": "What is sentiment of headphon?"
+"What trends can you identify?""What is the highest rating?""Summarize overall satisfaction""How many products are in the dataset?""What insights can you draw?""What is the minimum review length?""Analyze customer behavior""What is the most common sentiment?

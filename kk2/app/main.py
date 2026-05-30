@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 import logging
 from app.data import load_csv, get_stats
-from kk2.app.schemas import (
+from app.schemas import (
     AskRequest,
     PromptInput
 )
