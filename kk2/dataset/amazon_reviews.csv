@@ -1,0 +1,6 @@
+product,sentiment,rating,review_length
+Laptop,positive,5,120
+Phone,negative,1,45
+Mouse,positive,4,80
+Keyboard,positive,5,100
+Headphones,negative,2,60
