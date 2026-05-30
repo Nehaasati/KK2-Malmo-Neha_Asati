@@ -1,11 +1,16 @@
 from app.chain.runnable import Runnable
+from transformers import pipeline
 from app.schemas import (
     PromptInput,
     PromptOutput,
     LLMOutput,
     ParsedAnswer,
 )
-
+# pipeline configer with LLm
+generator = pipeline(
+    "text-generation",
+    model="HuggingFaceTB/SmolLM2-135M-Instruct"
+)
 # The PromptBuilder class is a specific implementation of the Runnable interface that takes a PromptInput and produces a PromptOutput. The invoke method constructs a prompt string based on the provided dataset statistics and user question, following a specific format that instructs the AI to use only the provided data to answer the question. If the answer cannot be determined from the data, it instructs the AI to respond with "Not enough information." The generated prompt is then returned as a PromptOutput object.
 class PromptBuilder(Runnable[PromptInput, PromptOutput]):
 
