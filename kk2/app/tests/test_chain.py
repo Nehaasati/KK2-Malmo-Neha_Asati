@@ -23,3 +23,13 @@ def test_prompt_contains_question():
 
     # The question must be somewhere in the built prompt
     assert "What is the average rating?" in result.prompt
+
+# To check LLM give give stats value from dataset such as mean medium if we not have say "no information "not predict  hallucinate
+def test_prompt_contains_stat_values():
+    builder = PromptBuilder()
+    result = builder.invoke(PromptInput(
+        question="Any question",
+        stats={"rating": {"mean": 4.0, "max": 5.0}},
+    ))
+    assert "4.0" in result.prompt
+    assert "5.0" in result.prompt

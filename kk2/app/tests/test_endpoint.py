@@ -27,3 +27,6 @@ def test_ask_no_dataset():
     assert response.json()["detail"] == "Dataset must be uploaded before asking questions"
 
     data_module.DATA = original 
+
+# To check LLM give give stats value from dataset such as mean medium if we not have say "no information "not predict  hallucinate
+
