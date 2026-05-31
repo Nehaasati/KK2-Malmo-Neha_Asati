@@ -33,3 +33,18 @@ def test_prompt_contains_stat_values():
     ))
     assert "4.0" in result.prompt
     assert "5.0" in result.prompt
+
+# check it promt used column name such as review
+def test_prompt_contains_column_name():
+    builder = PromptBuilder()
+    result = builder.invoke(PromptInput(
+        question="Any question",
+        stats={"review_length": {"mean": 80.0, "count": 6.0}},
+    ))
+    assert "review_length" in result.prompt
+# check Rewsponse parser work fine 
+
+def  test_parser_plain_text():
+    parser = ResponseParser()
+    result = parser.invoke(LLMOutput(raw_text="The average rating is 4.0."))
+    assert result.answer == "The average rating is 4.0."
