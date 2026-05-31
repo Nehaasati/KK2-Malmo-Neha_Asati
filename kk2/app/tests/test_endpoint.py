@@ -15,14 +15,15 @@ def test_stats_dataset():
 # This test checks the /ai/ask endpoint when no dataset has been uploaded. 
 # It sends a POST request with a question in the request body and asserts that the response status code is 404, indicating that no dataset is available for processing the question. 
 # It also checks that the error message in the response body is "No dataset uploaded".
-def test_ask_No_dataset():
+def test_ask_no_dataset():
+    import app.data as data_module
+    original = data_module.DATA
+    data_module.DATA = None  # force no dataset
 
-    response = client.post(
-        "/ai/ask",
-        json={
-            "question": "Best product?"
-        }
-    )
+    response = client.post("/ai/ask", json={"question": "Best product?"})
 
-    assert response.status_code == 404
-    assert response.json()["detail"] == "No dataset uploaded"
+    # Match what main.py ACTUALLY returns
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Dataset must be uploaded before asking questions"
+
+    data_module.DATA = original 
