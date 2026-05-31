@@ -48,3 +48,22 @@ def  test_parser_plain_text():
     parser = ResponseParser()
     result = parser.invoke(LLMOutput(raw_text="The average rating is 4.0."))
     assert result.answer == "The average rating is 4.0."
+# check pipeline is workig fine its does used fake :
+def test_llm_runner_returns_correct_text():
+    """
+    When the model works correctly, LLMRunner must return
+    the generated text inside LLMOutput.
+    Uses a plain working function — no MagicMock needed.
+    """
+    def working_model(prompt, **kwargs):
+        # Real HuggingFace pipeline returns a list of dicts
+        return [{"generated_text": "The average rating is 4.0."}]
+
+    LLMRunner.generator = working_model
+    runner = LLMRunner()
+    result = runner.invoke(PromptOutput(prompt="Test prompt"))
+
+    assert isinstance(result, LLMOutput)
+    assert result.raw_text == "The average rating is 4.0."
+
+    LLMRunner.generator = None
