@@ -54,7 +54,7 @@ http://127.0.0.1:8000/docs
 
 Usage
 
-#1. Upload Dataset
+1. Upload Dataset
 
 Navigate to:
 POST /data/upload
